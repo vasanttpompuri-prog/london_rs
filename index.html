@@ -235,7 +235,8 @@ const lineColors = {
   Overground: { label: "Overground",      color: "#EE7C0E" },
   Jubilee:    { label: "Jubilee line",    color: "#868F98" },
   DLR:        { label: "DLR",             color: "#00A4A7" },
-  GatwickExpress: { label: "Gatwick Express (National Rail)", color: "#84754E", dashed: true }
+  GatwickExpress: { label: "Gatwick Express (National Rail)", color: "#84754E", dashed: true },
+  HammersmithCity: { label: "Hammersmith & City line", color: "#F3A9BB" }
 };
 
 const towns = [
@@ -273,6 +274,11 @@ const towns = [
     tags: ["緑豊かな郊外", "ファミリー層に人気", "'郊外の女王'"],
     blurb: "'クイーン・オブ・ザ・サバーブス'と呼ばれる緑豊かな住宅エリア。庭付き一戸建てが多く、ファミリー層から根強い人気がある。",
     lines: [lineColors.Central], zone: "Zone 3", priceAvg: "£520,000〜" },
+
+  { id: "white_city", name: "White City", sub: "ホワイトシティ / テレビジョンセンター", x: 75, y: 170,
+    tags: ["BBCスタジオ跡地の再開発", "The Ariel（全167戸・2027年竣工予定）", "ウェストフィールド徒歩圏内"],
+    blurb: "旧BBCテレビジョンセンターを住宅・ホテル・オフィス・レストランが一体となった複合施設に再開発。「The Ariel」は全167戸（スタジオ〜3ベッドルーム）で2027年6月竣工予定。Central線「White City」駅徒歩2分、Hammersmith & City/Circle線「Wood Lane」駅徒歩1分。ウェストフィールド・ロンドンも徒歩圏内。",
+    lines: [lineColors.Central, lineColors.HammersmithCity, lineColors.Circle], zone: "Zone 2", priceAvg: "要問い合わせ" },
 
   { id: "shepherds_bush", name: "Shepherd's Bush", sub: "シェパーズ・ブッシュ / ホーランドパーク周辺", x: 90, y: 225,
     tags: ["ホーランドパークに隣接", "大型商業施設(ウェストフィールド)", "近年再開発が進行"],
@@ -356,7 +362,8 @@ const edges = [
   ["bond_street", "oxford_circus", "Central"],
   ["bond_street", "liverpool_street", "Elizabeth"],
   ["bond_street", "waterloo", "Jubilee"],
-  ["ealing", "shepherds_bush", "Central"],
+  ["ealing", "white_city", "Central"],
+  ["white_city", "shepherds_bush", "Central"],
   ["shepherds_bush", "notting_hill", "Central"],
   ["shepherds_bush", "clapham", "Overground"],
   ["stratford", "liverpool_street", "Central"],
