@@ -599,9 +599,29 @@ try {
   }
 } catch (e) { sb = null; }
 
-// ---- Shared "room": fixed team passphrase, baked in so it can never be mistyped ----
-const ROOM_KEY = "Teatime";
-const roomKey = sb ? ROOM_KEY : null;
+// ---- Shared "room": a team passphrase scopes everyone to the same notes ----
+// Input is normalized (trimmed, first letter capitalized, rest lowercased) so that
+// "teatime", "TEATIME", "TeaTime" etc. all resolve to the same "Teatime" room,
+// preventing the case-mismatch bugs we hit before.
+function normalizeRoomKey(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "default-room";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+}
+function getRoomKey() {
+  try {
+    let key = localStorage.getItem("london-explorer:room-key");
+    if (!key) {
+      const input = window.prompt(
+        "チームで共有する合言葉を入力してください（初回のみ。全員が同じ合言葉を使ってください）"
+      );
+      key = normalizeRoomKey(input);
+      localStorage.setItem("london-explorer:room-key", key);
+    }
+    return key;
+  } catch (e) { return "default-room"; }
+}
+const roomKey = sb ? getRoomKey() : null;
 
 function localKey(id) { return "london-explorer:" + id; }
 function loadLocal(id) {
