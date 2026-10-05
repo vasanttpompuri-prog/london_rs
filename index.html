@@ -151,6 +151,17 @@
     background: var(--ink); color: var(--paper); cursor: pointer;
   }
   button.btn.secondary { background: transparent; color: var(--ink); }
+  .room-chip {
+    position: absolute; top: 64px; right: 22px; z-index: 16;
+    font-size: 11.5px; color: var(--ink-soft); background: var(--paper);
+    border: 1px solid var(--tan-line); border-radius: 4px; padding: 6px 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .room-chip strong { color: var(--ink); }
+  .room-chip button {
+    font: inherit; font-size: 11px; cursor: pointer; color: var(--ink);
+    background: transparent; border: 1px solid var(--tan-line); border-radius: 3px; padding: 2px 8px;
+  }
   .save-hint { font-size: 11.5px; color: var(--ink-soft); margin-top: 8px; }
 
   .legend {
@@ -206,6 +217,7 @@
 
   <main class="map-wrap">
     <svg id="londonmap" viewBox="0 0 760 620" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="room-chip" id="roomChip"></div>
     <div class="legend" id="legendBox">
       <div class="legend-header" id="legendHandle">
         <strong>路線凡例 <span class="drag-hint">(ドラッグで移動)</span></strong>
@@ -589,8 +601,8 @@ const panelInner = document.getElementById("panelInner");
 // 2) SQLエディタで配布した schema.sql の内容を実行してテーブルを作成
 // 3) 左メニュー「Project Settings」→「API」で Project URL と anon/public key（新しい表記では
 //    "publishable key"）を確認し、下の2つの値をその内容に書き換える
-const SUPABASE_URL = "https://zvlghhlioykiyljionze.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Mg7TQaYUt0SKVGee4DgdBw_adxxUBpK";
+const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
 
 let sb = null;
 try {
@@ -605,23 +617,35 @@ try {
 // preventing the case-mismatch bugs we hit before.
 function normalizeRoomKey(raw) {
   const trimmed = (raw || "").trim();
-  if (!trimmed) return "default-room";
+  if (!trimmed) return "";
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 }
+// Returns "" when no valid passphrase is set (cancelled/empty). Nothing wrong is ever saved.
 function getRoomKey() {
   try {
     let key = localStorage.getItem("london-explorer:room-key");
+    if (key === "default-room") key = ""; // stale value from an older version: ignore it
     if (!key) {
       const input = window.prompt(
-        "チームで共有する合言葉を入力してください（初回のみ。全員が同じ合言葉を使ってください）"
+        "チームで共有する合言葉を入力してください（全員が同じ合言葉を使ってください）"
       );
       key = normalizeRoomKey(input);
-      localStorage.setItem("london-explorer:room-key", key);
+      if (key) localStorage.setItem("london-explorer:room-key", key);
+      else localStorage.removeItem("london-explorer:room-key");
     }
     return key;
-  } catch (e) { return "default-room"; }
+  } catch (e) { return ""; }
 }
-const roomKey = sb ? getRoomKey() : null;
+const roomKey = sb ? getRoomKey() : "";
+const sharedMode = !!sb && !!roomKey;
+
+function changeRoomKey() {
+  const input = window.prompt("新しい合言葉を入力してください（全員が同じ合言葉を使ってください）");
+  const key = normalizeRoomKey(input);
+  if (!key) return;
+  try { localStorage.setItem("london-explorer:room-key", key); } catch (e) {}
+  location.reload();
+}
 
 function localKey(id) { return "london-explorer:" + id; }
 function loadLocal(id) {
@@ -671,16 +695,17 @@ function debounce(fn, wait) {
 }
 
 let currentChannel = null;
+let channelSeq = 0;
 let currentId = null;
 
 async function openPanel(id) {
   document.querySelectorAll(".star-btn").forEach(s => s.classList.remove("active"));
   document.getElementById("star-" + id).classList.add("active");
-  if (currentChannel) { sb.removeChannel(currentChannel); currentChannel = null; }
+  if (currentChannel) { try { sb.removeChannel(currentChannel); } catch (e) {} currentChannel = null; }
   currentId = id;
 
   const t = townMap[id];
-  const shared = !!sb;
+  const shared = sharedMode;
   let saved = shared ? await loadShared(id) : null;
   if (saved === null) saved = loadLocal(id);
 
@@ -726,7 +751,8 @@ async function openPanel(id) {
     <textarea id="notesBox" placeholder="内見の感想、気になった物件、質問リストなど"></textarea>
     <p class="save-hint">${shared
       ? "同じ合言葉を使う人全員にリアルタイムで共有されます"
-      : "Supabase未設定のため、この端末のブラウザにのみ保存されます"}</p>
+      : (sb ? "合言葉が未設定のため、この端末のブラウザにのみ保存されます（右上の「合言葉を設定」から設定できます）"
+            : "Supabase未設定のため、この端末のブラウザにのみ保存されます")}</p>
   `;
 
   const notesInput = document.getElementById("notesBox");
@@ -797,7 +823,7 @@ async function openPanel(id) {
 
   if (shared) {
     currentChannel = sb
-      .channel("notes-" + id + "-" + roomKey)
+      .channel("notes-" + id + "-" + roomKey + "-" + (++channelSeq))
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notes", filter: `town_id=eq.${id}` },
@@ -825,14 +851,25 @@ async function openPanel(id) {
 
 document.getElementById("closePanel").addEventListener("click", () => {
   panel.classList.remove("open");
-  if (currentChannel) { sb.removeChannel(currentChannel); currentChannel = null; }
+  if (currentChannel) { try { sb.removeChannel(currentChannel); } catch (e) {} currentChannel = null; }
   currentId = null;
 });
+
+// room chip (shows which shared room this device is connected to)
+(function renderRoomChip() {
+  const chip = document.getElementById("roomChip");
+  if (!sb) { chip.style.display = "none"; return; }
+  chip.innerHTML = (roomKey
+    ? '合言葉: <strong>' + roomKey.replace(/[<>&"]/g, "") + '</strong>'
+    : '合言葉: <strong>未設定</strong>') +
+    ' <button type="button" id="roomChipBtn">' + (roomKey ? "変更" : "合言葉を設定") + '</button>';
+  document.getElementById("roomChipBtn").addEventListener("click", changeRoomKey);
+})();
 
 // mark stars that already have saved notes
 (async () => {
   for (const t of towns) {
-    let saved = sb ? await loadShared(t.id) : null;
+    let saved = sharedMode ? await loadShared(t.id) : null;
     if (saved === null) saved = loadLocal(t.id);
     if (saved && (saved.notes || saved.folderLink || saved.folderLink2)) {
       const starEl = document.getElementById("star-" + t.id);
